@@ -7,16 +7,16 @@ from utils import *
 
 env_name = "l2rpn_idf_2023_train"
 save_path = "./saved_models"
-max_iter = 7 * 24 * 12  # None to deactivate it    
+max_iter = 7 * 24 * 12  # This parameter is set so that each scenario lasts a week   
 
-# parameters for the training
+# the heuristic is implemented in the gym environment
 gymenv_class = CustomGymEnv
 
 safe_max_rho = 0.9  # the grid is said "safe" if the rho is lower than this value, it is a really important parameter to tune !
 curtail_margin = 30  # it is a really important parameter to tune !
 
 nb_iter = 4096
-# nb_iter = 10_000_000
+# nb_iter = 10_000_000 # the NoPlan agent, LightCurtailment agent and Final agent were trained with 10 000 000 iterations
 
 reward_class = PenalizeSetpointPosReward
 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     
     torch.cuda.set_device(3)
     
-    # you can change below (full list at https://grid2op.readthedocs.io/en/latest/observation.html#main-observation-attributes)
+    # attributes taken into account in the observation
     obs_attr_to_keep = ["month", "day_of_week", "hour_of_day", "minute_of_hour",
                         "gen_p", "load_p", 
                         "p_or", "rho", "timestep_overflow", "line_status",
@@ -41,7 +41,7 @@ if __name__ == "__main__":
                         # curtailment part of the observation
                         "curtailment", "curtailment_limit",  "gen_p_before_curtail",
                         ]
-    # same here you can change it as you please
+    # attributes of the possible actions
     act_attr_to_keep = ["curtail", "set_storage"]
     
     # parameters for the learning
@@ -55,25 +55,26 @@ if __name__ == "__main__":
                        chronics_class=MultifolderWithCache,
                        )
     
+    # loading coefficients used to normalize observations and actions
     with open("preprocess_obs.json", "r", encoding="utf-8") as f:
         obs_space_kwargs = json.load(f)
     with open("preprocess_act.json", "r", encoding="utf-8") as f:
         act_space_kwargs = json.load(f)
         
+    # hyper-parameters specific to the heuristic
     gymenv_kwargs = {"safe_max_rho": safe_max_rho, "curtail_margin": curtail_margin, "reward_cumul": "sum"}    
     
-    # train on all february month, why not ?
+    # we train only on the february month (a very cold month)
     env.chronics_handler.real_data.set_filter(lambda x: re.match(r".*2035-02-.*$", x) is not None)
     env.chronics_handler.real_data.reset()
     # see https://grid2op.readthedocs.io/en/latest/environment.html#optimize-the-data-pipeline
     # for more information !
     
-    if max_iter is not None:
-        env.set_max_iter(max_iter)  # one week
-    obs = env.reset()    
-    
-    
+    env.set_max_iter(max_iter)  # set the duration of a scenario to one week
+    env.reset()    
+        
     print("environment loaded !")
+    
     for i in range(5):
             trained_agent = train(
                     env,

@@ -55,7 +55,7 @@ if __name__ == "__main__":
                        chronics_class=MultifolderWithCache,
                        )
     
-    # loading values used to normalize observations and actions
+    # loading coefficients used to normalize observations and actions
     with open("preprocess_obs.json", "r", encoding="utf-8") as f:
         obs_space_kwargs = json.load(f)
     with open("preprocess_act.json", "r", encoding="utf-8") as f:
@@ -67,9 +67,10 @@ if __name__ == "__main__":
     # we train only on the february month (a very cold month)
     env.chronics_handler.real_data.set_filter(lambda x: re.match(r".*2035-02-.*$", x) is not None)
     env.chronics_handler.real_data.reset()
+    # see https://grid2op.readthedocs.io/en/latest/environment.html#optimize-the-data-pipeline
+    # for more information !
     
     env.set_max_iter(max_iter)  # set the duration of a scenario to one week
-    
     env.reset()    
     
     print("environment loaded !")

@@ -13,8 +13,6 @@ from tqdm import tqdm
 
 from l2rpn_baselines.PPO_SB3 import train
 
-from A_prep_env import get_env_seed
-
 from utils import *
 
 class ZeroReward(BaseReward):
@@ -156,8 +154,6 @@ def evaluate_agent(agent_name,
 
     env_seeds=[0 for _ in range(nb_scenario)]
     agent_seeds=[0 for _ in range(nb_scenario)]
-    # env_seeds=get_env_seed(env_name)
-    # agent_seeds=[0 for _ in range(nb_scenario)]
 
     ts_survived_array = np.full(nb_scenario, np.nan)
     reward_array = np.full(nb_scenario, np.nan)
