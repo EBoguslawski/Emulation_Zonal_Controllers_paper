@@ -87,14 +87,14 @@ for agent_name in agents_names:
     gymenv_kwargs={"safe_max_rho": safe_max_rho, "curtail_margin": curtail_margin, "reward_cumul":reward_cumul}
 
     with open("preprocess_obs.json", "r", encoding="utf-8") as f:
-        obs_space_kwargs = json.load(f)
+        obs_space_kwargs_default = json.load(f)
     with open("preprocess_act.json", "r", encoding="utf-8") as f:
-        act_space_kwargs = json.load(f)
+        act_space_kwargs_default = json.load(f)
 
     if gymenv_class in [GymEnvWithSetPoint, GymEnvWithSetPointRecoDN, GymEnvWithSetPointRemoveCurtail]:
         gymenv_kwargs={"safe_max_rho": safe_max_rho, "curtail_margin": curtail_margin, "reward_cumul":reward_cumul, 
                     "weight_penalization_storage": -(0.5)**1, "ind":1} #, "very_safe_max_rho": 0.85}
-        obs_space_kwargs["functs"] ={"storage_setpoint": (lambda grid2opobs: np.zeros(env_val.n_storage), 0., 1.0, None, None)}
+        obs_space_kwargs_default["functs"] ={"storage_setpoint": (lambda grid2opobs: np.zeros(env_val.n_storage), 0., 1.0, None, None)}
         compute_storage_diff = True
     else:
         compute_storage_diff = False
@@ -110,8 +110,8 @@ for agent_name in agents_names:
                     agent_name,
                 gymenv_class,
                 gymenv_kwargs,
-                obs_space_kwargs=obs_space_kwargs,
-                act_space_kwargs=act_space_kwargs,
+                obs_space_kwargs=obs_space_kwargs_default,
+                act_space_kwargs=act_space_kwargs_default,
                 return_gymenv=True,
                 iter_num=iter_num,
                 )

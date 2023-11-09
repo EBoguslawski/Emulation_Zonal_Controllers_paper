@@ -21,7 +21,7 @@ class ZeroReward(BaseReward):
         BaseReward.__init__(self, logger=logger)
         
     def __call__(self, action, env, has_error, is_done, is_illegal, is_ambiguous):        
-        reward = 0 # empirically rew_lines_capacity is around 0.7 - 0.9, rew_curtail is around 0.3 - 0.4
+        reward = 0
         return reward
     
 class OneReward(BaseReward):
@@ -30,7 +30,7 @@ class OneReward(BaseReward):
         BaseReward.__init__(self, logger=logger)
         
     def __call__(self, action, env, has_error, is_done, is_illegal, is_ambiguous):        
-        reward = 1. # empirically rew_lines_capacity is around 0.7 - 0.9, rew_curtail is around 0.3 - 0.4
+        reward = 1.
         return reward
     
 class CurtailmentMWReward(BaseReward):
@@ -70,13 +70,14 @@ reward_cumul = "sum"
 show_tqdm = False
 
 # agents_names = [f"Final_agent_{j}" for j in [0]]
-agents_names = [f"agent_default_no_redisp_LinesCapacityReward_CustomGymEnv_0.85_0.9_sum_3x300_bis_lr2_10M_{j}" for j in range(3,13)]
+# agents_names = [f"agent_default_no_redisp_LinesCapacityReward_CustomGymEnv_0.85_0.9_sum_3x300_bis_lr2_10M_{j}" for j in range(3,4)]
 
-# nb_scenario = 34
-nb_scenario = 2
+nb_scenario = 3
+4
+# nb_scenario = 2
 
 # load_path = "./saved_models/"
-load_path = "/home/boguslawskieva/PSCC_idf_2023/saved_model_2023/"
+# load_path = "/home/boguslawskieva/PSCC_idf_2023/saved_model_2023/"
 iter_num = None  # put None for the latest version
 verbose = True
 
@@ -94,65 +95,43 @@ def evaluate_agent(agent_name,
             safe_max_rho = 0.9,
             curtail_margin = 30,
             show_tqdm=True,
-            iter_num = None,    
+            iter_num = None,  
+            save_dict = False,  
 ):
-    env_val = grid2op.make(env_name, reward_class=ZeroReward, other_rewards={"timesteps":OneReward, "curtailment_mw":CurtailmentMWReward, "curtailment_limit":CurtailmentLimitReward})
-
-    gymenv_kwargs={"safe_max_rho": safe_max_rho, "curtail_margin": curtail_margin, "reward_cumul":"sum"}
-
-    with open("preprocess_obs.json", "r", encoding="utf-8") as f:
-        obs_space_kwargs = json.load(f)
-    with open("preprocess_act.json", "r", encoding="utf-8") as f:
-        act_space_kwargs = json.load(f)
-        
-    if issubclass(gymenv_class_training, GymEnvWithSetPoint):
-        obs_space_kwargs["functs"] ={"storage_setpoint": (lambda grid2opobs: np.zeros(env_val.n_storage), 0., 1.0, None, None)}
-        
+    env_val = grid2op.make(env_name, reward_class=ZeroReward, other_rewards={"timesteps":OneReward, "curtailment_mw":CurtailmentMWReward, "curtailment_limit":CurtailmentLimitReward})        
 
     if my_agent is None:
         my_agent = load_agent(env_val, load_path,
                                     agent_name,
                                     gymenv_class_training,
                                     # {"safe_max_rho": safe_max_rho, "curtail_margin": curtail_margin, "reward_cumul":reward_cumul},
-                                    obs_space_kwargs=obs_space_kwargs,
-                                    act_space_kwargs=act_space_kwargs,
                                     iter_num=iter_num,
                         )
+        
+        print(f"Agent {agent_name} loaded with gymenv_class {gymenv_class_training.__name__}!")
 
-    load_path = "./saved_models/"
-    agent_name_to_build_gymenv_eval = "NoPlan_agent_0"
-    # if gymenv_class_evaluation in [GymEnvWithSetPoint, GymEnvWithSetPointRecoDN, GymEnvWithSetPointRemoveCurtail]:
+    gymenv_kwargs={"safe_max_rho": safe_max_rho, "curtail_margin": curtail_margin, "reward_cumul":"sum"}
     if issubclass(gymenv_class_evaluation, GymEnvWithSetPoint):
         gymenv_kwargs["weight_penalization_storage"] = - 0.5
-        obs_space_kwargs["functs"] ={"storage_setpoint": (lambda grid2opobs: np.zeros(env_val.n_storage), 0., 1.0, None, None)}
-        agent_name_to_build_gymenv_eval = "Final_agent_0"
         
     if gymenv_class_evaluation == GymEnvWithSetPointRemoveCurtail:
         gymenv_kwargs.update({'very_safe_max_rho': 0.85, 'n_gen_to_uncurt': 1, 'ratio_to_uncurt': 0.05, 'margin': 0.0, 'less_or_more': 'more'})
 
 
     print("gymenv_kwargs:", gymenv_kwargs, "reward_cum:", reward_cumul, "iter_num:", iter_num)
-    
-    print(f"Agent {agent_name} loaded with gymenv_class {gymenv_class_training.__name__}!")
-    
-    my_path = os.path.join(load_path, agent_name_to_build_gymenv_eval)        
-    with open(os.path.join(my_path, "obs_attr_to_keep.json"), encoding="utf-8", mode="r") as f:
-        obs_attr_to_keep = json.load(fp=f)
-    with open(os.path.join(my_path, "act_attr_to_keep.json"), encoding="utf-8", mode="r") as f:
-        act_attr_to_keep = json.load(fp=f)
 
-    _, gym_env = load_agent(env_val, load_path, 
-                    agent_name_to_build_gymenv_eval,
-                gymenv_class_evaluation,
-                gymenv_kwargs,
-                obs_space_kwargs=obs_space_kwargs,
-                act_space_kwargs=act_space_kwargs,
-                return_gymenv=True,
-                iter_num=iter_num,
+    gym_env = create_gymenv(env_val,
+               gymenv_class_evaluation,
+               gymenv_kwargs=gymenv_kwargs
                 )
 
 
-    env_seeds=[0 for _ in range(nb_scenario)]
+    # env_seeds=[0 for _ in range(nb_scenario)]
+    env_seeds = [1558339257, 1953351278, 368231021, 1039865328, 1262305624, 612239120, 2099139284, 2119137781, 
+                 1988556056, 431758685, 1485800608, 348197074, 1329383771, 1520600050, 1661332927, 1553317924, 
+                 1952114582, 1307414814, 1828284229, 594142571, 1454445973, 2014219556, 2032911575, 1932799384, 
+                 1251080764, 896704283, 121724528, 628201122, 1064146026, 597708608, 1978904151, 1896826479, 723392956, 789224689
+    ][:nb_scenario]
     agent_seeds=[0 for _ in range(nb_scenario)]
 
     ts_survived_array = np.full(nb_scenario, np.nan)
@@ -169,7 +148,7 @@ def evaluate_agent(agent_name,
     for i in range(nb_scenario):
         gym_env.init_env.set_id(i)
         gym_env.init_env.seed(env_seeds[i])
-        # gym_env.init_env.space_prng.seed(env_seeds[i])
+        
         gym_obs, reward, done, info = gym_env.reset(return_all=True, seed=env_seeds[i])
         my_agent.seed(agent_seeds[i])
 
@@ -251,7 +230,7 @@ def evaluate_agent(agent_name,
     print("Average limits for curtailment", curtailment_limit_array.sum()/(one_reward_array.sum() * gym_env.init_env.gen_renewable.sum()))
     print("Average storage setpoint diff above smr", storage_diff_smr_array.sum()/(above_smr_array.sum())) 
     print("Average curtailment limits above smr", curtailment_limit_smr_array.sum()/(above_smr_array.sum() * gym_env.init_env.gen_renewable.sum()))   
-
+    
     dict_to_save = {"Average timesteps survived:": np.mean(ts_survived_array),
                     "ts_survived_array": ts_survived_array, 
                     "reward_array": reward_array,
@@ -265,44 +244,47 @@ def evaluate_agent(agent_name,
                     "above_smr_array": above_smr_array
                     }
     
-    os.makedirs(os.path.join("./final_results"), exist_ok=True)
-    np.save(os.path.join("./final_results", f"dict_{agent_name}_{gymenv_class_evaluation.__name__}.npy"), dict_to_save)
+    if save_dict:
+        os.makedirs(os.path.join("./final_results"), exist_ok=True)
+        np.save(os.path.join("./final_results", f"dict_{agent_name}_{gymenv_class_evaluation.__name__}.npy"), dict_to_save)
         
-    # np.savetxt("ts_survived_agent_donothnig.csv", ts_survived_array)
+    return dict_to_save
+    
 
 # agents_names = [f"agent_default_no_redisp_LinesCapacityReward_CustomGymEnv_0.85_0.9_sum_3x300_bis_lr2_10M_{j}" for j in range(3,13)]
 # agents_names = [f"agent_default_no_redisp_PenalizeSetpointPosReward_CustomGymEnv_0.85_0.9_sum_3x300_bis_lr2_10M_{j}" for j in range(3,12)]
-agents_names = ["agent_default_no_redisp_PenalizeSetpointPosReward_GymEnvWithSetPointRemoveCurtail_0.85_0.9_0.25_sum_3x300_bis_lr2_10M_3_gpu1",
-                "agent_default_no_redisp_PenalizeSetpointPosReward_GymEnvWithSetPointRemoveCurtail_0.85_0.9_0.25_sum_3x300_bis_lr2_10M_3_gpu2"] + \
-                [f"agent_default_no_redisp_PenalizeSetpointPosReward_GymEnvWithSetPointRemoveCurtail_0.85_0.9_0.25_sum_3x300_bis_lr2_10M_{j}" for j in range(4,8)]
+# agents_names = ["agent_default_no_redisp_PenalizeSetpointPosReward_GymEnvWithSetPointRemoveCurtail_0.85_0.9_0.25_sum_3x300_bis_lr2_10M_3_gpu1",
+#                 "agent_default_no_redisp_PenalizeSetpointPosReward_GymEnvWithSetPointRemoveCurtail_0.85_0.9_0.25_sum_3x300_bis_lr2_10M_3_gpu2"] + \
+#                 [f"agent_default_no_redisp_PenalizeSetpointPosReward_GymEnvWithSetPointRemoveCurtail_0.85_0.9_0.25_sum_3x300_bis_lr2_10M_{j}" for j in range(4,8)]
 
-load_path = "/home/boguslawskieva/PSCC_idf_2023/saved_model_2023/"
-
-for agent_name in agents_names:
-    evaluate_agent(agent_name, 
-                # CustomGymEnv, 
-                # GymEnvWithSetPointRecoDN, 
-                GymEnvWithSetPointRemoveCurtail,
-                GymEnvWithSetPointRemoveCurtail,
-                load_path = load_path,
-                nb_scenario=34,
-                show_tqdm=False,
-                )
-    
-# agents_names = [f"agent_default_no_redisp_LinCapRew_sum_3x300_lr2_10M_{j}" for j in range(3)]
-# agents_names = ["agent_default_no_redisp_PenSetpointPosRew_sum_3x300_bis_lr2_10M_0"]
-
-# load_path = "/data/boguslawskieva_data/ppo_stable_baselines_idf_2023/saved_model_2023/"
+# load_path = "/home/boguslawskieva/PSCC_idf_2023/saved_model_2023/"
 
 # for agent_name in agents_names:
 #     evaluate_agent(agent_name, 
-#                 CustomGymEnv, 
+#                 # CustomGymEnv, 
 #                 # GymEnvWithSetPointRecoDN, 
 #                 GymEnvWithSetPointRemoveCurtail,
-#                 load_path = load_path,
-#                 nb_scenario=34,
+#                 GymEnvWithSetPointRemoveCurtail,
+#                 load_path=load_path,
+#                 nb_scenario=nb_scenario,
 #                 show_tqdm=False,
 #                 )
+    
+# agents_names = [f"agent_default_no_redisp_LinCapRew_sum_3x300_lr2_10M_{j}" for j in range(3)]
+# agents_names = ["agent_default_no_redisp_PenSetpointPosRew_sum_3x300_bis_lr2_10M_0"]
+agents_names = ["agent_default_no_redisp_LinCapRew_sum_3x300_lr2_10M_0"]
+
+load_path = "/data/boguslawskieva_data/ppo_stable_baselines_idf_2023/saved_model_2023/"
+
+for agent_name in agents_names:
+    evaluate_agent(agent_name, 
+                CustomGymEnv, 
+                GymEnvWithSetPointRecoDN, 
+                # GymEnvWithSetPointRemoveCurtail,
+                load_path=load_path,
+                nb_scenario=nb_scenario,
+                show_tqdm=False,
+                )
 
 print("END OF SCRIPT")
 

@@ -1,6 +1,7 @@
 import numpy as np
 import json
 import os
+import copy
 from grid2op.Reward.baseReward import BaseReward
 from grid2op.Observation import BaseObservation
 from grid2op.Action import BaseAction
@@ -11,11 +12,26 @@ from typing import List, Dict, Tuple
 from grid2op.gym_compat import BoxGymActSpace, BoxGymObsSpace, GymEnv
 from l2rpn_baselines.PPO_SB3.utils import SB3Agent
 import gymnasium
+import pdb
+
+# attributes taken into account in the observation by default
+obs_attr_to_keep_default = ["month", "day_of_week", "hour_of_day", "minute_of_hour",
+                    "gen_p", "load_p", 
+                    "p_or", "rho", "timestep_overflow", "line_status",
+                    # dispatch part of the observation
+                    "actual_dispatch", "target_dispatch",
+                    # storage part of the observation
+                    "storage_charge", "storage_power",
+                    # curtailment part of the observation
+                    "curtailment", "curtailment_limit",  "gen_p_before_curtail",
+                    ]
+# attributes of the possible actions by default
+act_attr_to_keep_default = ["curtail", "set_storage"]
 
 with open("preprocess_obs.json", "r", encoding="utf-8") as f:
-    obs_space_kwargs = json.load(f)
+    obs_space_kwargs_default = json.load(f)
 with open("preprocess_act.json", "r", encoding="utf-8") as f:
-    act_space_kwargs = json.load(f) 
+    act_space_kwargs_default = json.load(f) 
 
 class CustomGymEnv(GymEnvWithRecoWithDN):
     """ 
@@ -438,120 +454,7 @@ class GymEnvWithSetPointRemoveCurtail(GymEnvWithSetPoint):
                 curtail_vect[gen_ids_to_uncurtail] = np.clip(g2op_obs.curtailment_limit[gen_ids_to_uncurtail] + self._ratio_to_uncurt, 0., 1)
             act_dict["curtail"]  = curtail_vect
             res = [self.init_env.action_space(act_dict)]
-        return res
-
-
-def load_agent(env, load_path, name,
-               gymenv_class,
-               gymenv_kwargs=None,
-               obs_space_kwargs=None,
-               act_space_kwargs=None,
-               iter_num=None,
-               return_gymenv=False,
-             ):
-
-
-    if obs_space_kwargs is None:
-        obs_space_kwargs = {}
-    if act_space_kwargs is None:
-        act_space_kwargs = {}
-
-    # load the attributes kept
-    my_path = os.path.join(load_path, name)        
-    with open(os.path.join(my_path, "obs_attr_to_keep.json"), encoding="utf-8", mode="r") as f:
-        obs_attr_to_keep = json.load(fp=f)
-    with open(os.path.join(my_path, "act_attr_to_keep.json"), encoding="utf-8", mode="r") as f:
-        act_attr_to_keep = json.load(fp=f)
-
-    if gymenv_kwargs is None:
-        gymenv_kwargs = {}
-    gymenv = gymenv_class(env, **gymenv_kwargs)
-    gymenv.observation_space.close()
-    if obs_space_kwargs is None:
-        obs_space_kwargs = {}
-    gymenv._observation_space = BoxGymObsSpace(env.observation_space,
-                                                attr_to_keep=obs_attr_to_keep,
-                                                **obs_space_kwargs)
-    gymenv.action_space.close()
-    if act_space_kwargs is None:
-        act_space_kwargs = {}
-    gymenv.action_space = BoxGymActSpace(env.action_space,
-                                          attr_to_keep=act_attr_to_keep,
-                                          **act_space_kwargs)
-    # create the action and observation space
-    # gym_observation_space =  BoxGymObsSpace(env.observation_space,
-    #                                         attr_to_keep=obs_attr_to_keep,
-    #                                         **obs_space_kwargs)
-    # gym_action_space = BoxGymActSpace(env.action_space,
-    #                                   attr_to_keep=act_attr_to_keep,
-    #                                   **act_space_kwargs)
-    
-    if os.path.exists(os.path.join(load_path, ".normalize_act")):
-        for attr_nm in act_attr_to_keep:
-            if (("multiply" in act_space_kwargs and attr_nm in act_space_kwargs["multiply"]) or 
-                ("add" in act_space_kwargs and attr_nm in act_space_kwargs["add"]) 
-               ):
-                continue
-            gymenv.action_space.normalize_attr(attr_nm)
-
-    if os.path.exists(os.path.join(load_path, ".normalize_obs")):
-        for attr_nm in obs_attr_to_keep:
-            if (("divide" in obs_space_kwargs and attr_nm in obs_space_kwargs["divide"]) or 
-                ("subtract" in obs_space_kwargs and attr_nm in obs_space_kwargs["subtract"]) 
-               ):
-                continue
-            gymenv._observation_space.normalize_attr(attr_nm)
-    
-    # gymenv = None
-    # if gymenv_class is not None and issubclass(gymenv_class, GymEnvWithHeuristics):
-    #     if gymenv_kwargs is None:
-    #         gymenv_kwargs = {}
-    #     gymenv = gymenv_class(env, **gymenv_kwargs)
-        
-    #     gymenv.action_space.close()
-    #     gymenv.action_space = gym_action_space
-        
-    #     gymenv.observation_space.close()
-    #     gymenv._observation_space = gym_observation_space
-        
-    # define the gym environment from the grid2op env
-        
-    gymenv.observation_space = gymnasium.spaces.Box(shape=gymenv._observation_space.shape,
-                                                     low=gymenv._observation_space.low,
-                                                     high=gymenv._observation_space.high,
-                                                     dtype=gymenv._observation_space.dtype,
-                                                    )
-    def to_gym2(self, *args, **kwargs):
-        return gymenv._observation_space.to_gym(*args, **kwargs)
-    setattr(type(gymenv.observation_space), "to_gym", to_gym2)
-    
-    def close2(self):
-        return gymenv._observation_space.close()
-    setattr(type(gymenv.observation_space), "close", close2)
-        
-    # create a grid2gop agent based on that (this will reload the save weights)
-    full_path = os.path.join(load_path, name)
-    
-    # def get_act2(self, gym_obs, reward, done):
-    #     if hasattr(type(self.gymenv), "_update_gym_obs"):
-    #         gym_obs = self.gymenv._update_gym_obs(gym_obs)
-    #     action, _ = self.nn_model.predict(gym_obs, deterministic=True) 
-    #     return action
-    
-    # setattr(SB3Agent, "get_act", get_act2)
-    
-    grid2op_agent = SB3Agent(env.action_space,
-                             gymenv.action_space,
-                             gymenv.observation_space,
-                             nn_path=os.path.join(full_path, name),
-                             gymenv=gymenv,
-                             iter_num=iter_num,
-                             )
-    if return_gymenv:
-        return grid2op_agent, gymenv
-    else:
-        return grid2op_agent
-    
+        return res    
     
     
 class GymEnvWithSetPointRecoDN(GymEnvWithSetPoint): 
@@ -586,3 +489,124 @@ class GymEnvWithSetPointRecoDN(GymEnvWithSetPoint):
             res = [self.init_env.action_space()]
             
         return res
+    
+    
+def create_gymenv(env,
+               gymenv_class,
+               gymenv_kwargs=None,
+               obs_space_kwargs=None,
+               obs_attr_to_keep=None,
+               act_space_kwargs=None,
+               act_attr_to_keep=None,
+               normalize_act=True,
+               normalize_obs=True,
+             ):
+
+    if obs_space_kwargs is None: obs_space_kwargs = copy.deepcopy(obs_space_kwargs_default)
+    if act_space_kwargs is None: act_space_kwargs = copy.deepcopy(act_space_kwargs_default)
+    if obs_attr_to_keep is None: obs_attr_to_keep = obs_attr_to_keep_default.copy()
+    if act_attr_to_keep is None: act_attr_to_keep = act_attr_to_keep_default.copy()
+    
+    if issubclass(gymenv_class, GymEnvWithSetPoint):
+        obs_space_kwargs["functs"] ={"storage_setpoint": (lambda grid2opobs: np.zeros(env.n_storage), 0., 1.0, None, None)}
+        obs_attr_to_keep.append("storage_setpoint")
+
+
+    if gymenv_kwargs is None:
+        gymenv_kwargs = {}
+    gymenv = gymenv_class(env, **gymenv_kwargs)
+    gymenv.observation_space.close()
+    gymenv._observation_space = BoxGymObsSpace(env.observation_space,
+                                                attr_to_keep=obs_attr_to_keep,
+                                                **obs_space_kwargs)
+    gymenv.action_space.close()
+    if act_space_kwargs is None:
+        act_space_kwargs = {}
+    gymenv.action_space = BoxGymActSpace(env.action_space,
+                                          attr_to_keep=act_attr_to_keep,
+                                          **act_space_kwargs)
+    # create the action and observation space
+    # gym_observation_space =  BoxGymObsSpace(env.observation_space,
+    #                                         attr_to_keep=obs_attr_to_keep,
+    #                                         **obs_space_kwargs)
+    # gym_action_space = BoxGymActSpace(env.action_space,
+    #                                   attr_to_keep=act_attr_to_keep,
+    #                                   **act_space_kwargs)
+    
+    if normalize_act:
+        for attr_nm in act_attr_to_keep_default:
+            if (("multiply" in act_space_kwargs and attr_nm in act_space_kwargs["multiply"]) or 
+                ("add" in act_space_kwargs and attr_nm in act_space_kwargs["add"]) 
+               ):
+                continue
+            gymenv.action_space.normalize_attr(attr_nm)
+
+    if normalize_obs:
+        for attr_nm in obs_attr_to_keep:
+            if (("divide" in obs_space_kwargs and attr_nm in obs_space_kwargs["divide"]) or 
+                ("subtract" in obs_space_kwargs and attr_nm in obs_space_kwargs["subtract"]) 
+               ):
+                continue
+            gymenv._observation_space.normalize_attr(attr_nm)
+    
+    # gymenv = None
+    # if gymenv_class is not None and issubclass(gymenv_class, GymEnvWithHeuristics):
+    #     if gymenv_kwargs is None:
+    #         gymenv_kwargs = {}
+    #     gymenv = gymenv_class(env, **gymenv_kwargs)
+        
+    #     gymenv.action_space.close()
+    #     gymenv.action_space = gym_action_space
+        
+    #     gymenv.observation_space.close()
+    #     gymenv._observation_space = gym_observation_space
+        
+    # define the gym environment from the grid2op env
+        
+    gymenv.observation_space = gymnasium.spaces.Box(shape=gymenv._observation_space.shape,
+                                                     low=gymenv._observation_space.low,
+                                                     high=gymenv._observation_space.high,
+                                                     dtype=gymenv._observation_space.dtype,
+                                                    )
+    def to_gym2(self, *args, **kwargs):
+        return gymenv._observation_space.to_gym(*args, **kwargs)
+    setattr(type(gymenv.observation_space), "to_gym", to_gym2)
+    
+    def close2(self):
+        return gymenv._observation_space.close()
+    setattr(type(gymenv.observation_space), "close", close2)
+        
+    return gymenv
+    
+def load_agent(env, load_path, name,
+               gymenv_class,
+               gymenv_kwargs={},
+               iter_num=None,
+               return_gymenv=False,
+             ):      
+    
+    # whether or not observations and actions are normalized
+    normalize_obs = os.path.exists(os.path.join(load_path, ".normalize_obs"))
+    normalize_act = os.path.exists(os.path.join(load_path, ".normalize_act"))
+    
+    # create the appropriated gym environment
+    gymenv = create_gymenv(env,
+               gymenv_class,
+               gymenv_kwargs=gymenv_kwargs,
+               normalize_obs=normalize_obs,
+               normalize_act=normalize_act,
+               )
+    
+    # create a grid2gop agent based on that (this will reload the save weights)
+    full_path = os.path.join(load_path, name)  
+    grid2op_agent = SB3Agent(env.action_space,
+                             gymenv.action_space,
+                             gymenv.observation_space,
+                             nn_path=os.path.join(full_path, name),
+                             gymenv=gymenv,
+                             iter_num=iter_num,
+                             )
+    if return_gymenv:
+        return grid2op_agent, gymenv
+    else:
+        return grid2op_agent
