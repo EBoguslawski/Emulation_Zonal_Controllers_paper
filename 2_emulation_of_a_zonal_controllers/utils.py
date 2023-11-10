@@ -520,8 +520,6 @@ def create_gymenv(env,
                                                 attr_to_keep=obs_attr_to_keep,
                                                 **obs_space_kwargs)
     gymenv.action_space.close()
-    if act_space_kwargs is None:
-        act_space_kwargs = {}
     gymenv.action_space = BoxGymActSpace(env.action_space,
                                           attr_to_keep=act_attr_to_keep,
                                           **act_space_kwargs)
@@ -585,9 +583,10 @@ def load_agent(env, load_path, name,
                return_gymenv=False,
              ):      
     
+    full_path = os.path.join(load_path, name) 
     # whether or not observations and actions are normalized
-    normalize_obs = os.path.exists(os.path.join(load_path, ".normalize_obs"))
-    normalize_act = os.path.exists(os.path.join(load_path, ".normalize_act"))
+    normalize_obs = os.path.exists(os.path.join(full_path,".normalize_obs"))
+    normalize_act = os.path.exists(os.path.join(full_path,".normalize_act"))
     
     # create the appropriated gym environment
     gymenv = create_gymenv(env,
@@ -597,8 +596,7 @@ def load_agent(env, load_path, name,
                normalize_act=normalize_act,
                )
     
-    # create a grid2gop agent based on that (this will reload the save weights)
-    full_path = os.path.join(load_path, name)  
+    # create a grid2gop agent based on that (this will reload the save weights) 
     grid2op_agent = SB3Agent(env.action_space,
                              gymenv.action_space,
                              gymenv.observation_space,

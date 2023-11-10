@@ -69,11 +69,7 @@ reward_cumul = "sum"
 # show_tqdm = True
 show_tqdm = False
 
-# agents_names = [f"Final_agent_{j}" for j in [0]]
-# agents_names = [f"agent_default_no_redisp_LinesCapacityReward_CustomGymEnv_0.85_0.9_sum_3x300_bis_lr2_10M_{j}" for j in range(3,4)]
-
-nb_scenario = 3
-4
+nb_scenario = 34
 # nb_scenario = 2
 
 # load_path = "./saved_models/"
