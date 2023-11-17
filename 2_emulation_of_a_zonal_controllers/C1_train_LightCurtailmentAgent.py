@@ -23,7 +23,6 @@ reward_class = PenalizeSetpointPosReward
 if __name__ == "__main__":
     
     import grid2op
-    from l2rpn_baselines.PPO_SB3 import train
     from lightsim2grid import LightSimBackend  # highly recommended !
     from grid2op.Chronics import MultifolderWithCache  # highly recommended for training
     import torch

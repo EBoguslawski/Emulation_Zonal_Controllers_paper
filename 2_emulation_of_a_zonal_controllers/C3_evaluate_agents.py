@@ -11,8 +11,6 @@ import os
 import copy
 from tqdm import tqdm
 
-from l2rpn_baselines.PPO_SB3 import train
-
 from utils import *
 
 class ZeroReward(BaseReward):

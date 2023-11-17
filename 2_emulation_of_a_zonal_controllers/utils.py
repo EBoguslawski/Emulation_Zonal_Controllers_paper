@@ -2,17 +2,23 @@ import numpy as np
 import json
 import os
 import copy
+import warnings
 from grid2op.Reward.baseReward import BaseReward
 from grid2op.Observation import BaseObservation
 from grid2op.Action import BaseAction
+from grid2op.gym_compat import BoxGymActSpace, BoxGymObsSpace, GymEnv
 from grid2op.dtypes import dt_float
 from l2rpn_baselines.utils import GymEnvWithHeuristics, GymEnvWithRecoWithDN
-from l2rpn_baselines.PPO_SB3 import evaluate
+
+from l2rpn_baselines.PPO_SB3.utils import (remove_non_usable_attr,
+                                           save_used_attribute,
+                                           SB3Agent)
+
+from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.ppo import MlpPolicy
+
 from typing import List, Dict, Tuple
-from grid2op.gym_compat import BoxGymActSpace, BoxGymObsSpace, GymEnv
-from l2rpn_baselines.PPO_SB3.utils import SB3Agent
 import gymnasium
-import pdb
 
 # attributes taken into account in the observation by default
 obs_attr_to_keep_default = ["month", "day_of_week", "hour_of_day", "minute_of_hour",
@@ -509,7 +515,8 @@ def create_gymenv(env,
     
     if issubclass(gymenv_class, GymEnvWithSetPoint):
         obs_space_kwargs["functs"] ={"storage_setpoint": (lambda grid2opobs: np.zeros(env.n_storage), 0., 1.0, None, None)}
-        obs_attr_to_keep.append("storage_setpoint")
+        if obs_attr_to_keep[-1] != "storage_setpoint":
+            obs_attr_to_keep.append("storage_setpoint")
 
 
     if gymenv_kwargs is None:
@@ -608,3 +615,294 @@ def load_agent(env, load_path, name,
         return grid2op_agent, gymenv
     else:
         return grid2op_agent
+    
+    
+    
+    
+def train(env,
+          name="PPO_SB3",
+          iterations=1,
+          save_path=None,
+          load_path=None,
+          net_arch=None,
+          logs_dir=None,
+          learning_rate=3e-4,
+          checkpoint_callback=None,
+          save_every_xxx_steps=None,
+          model_policy=MlpPolicy,
+          obs_attr_to_keep=copy.deepcopy(obs_attr_to_keep_default),
+          obs_space_kwargs=None,
+          act_attr_to_keep=copy.deepcopy(act_attr_to_keep_default),
+          act_space_kwargs=None,
+          policy_kwargs=None,
+          normalize_obs=False,
+          normalize_act=False,
+          gymenv_class=GymEnv,
+          gymenv_kwargs=None,
+          verbose=True,
+          seed=None,  # TODO
+          eval_env=None,  # TODO
+          **kwargs):
+    """
+    This function will use stable baselines 3 to train a PPO agent on
+    a grid2op environment "env".
+
+    It will use the grid2op "gym_compat" module to convert the action space
+    to a BoxActionSpace and the observation to a BoxObservationSpace.
+
+    It is suited for the studying the impact of continuous actions:
+
+    - on storage units
+    - on dispatchable generators
+    - on generators with renewable energy sources
+
+    Parameters
+    ----------
+    env: :class:`grid2op.Environment`
+        The environment on which you need to train your agent.
+
+    name: ``str```
+        The name of your agent.
+
+    iterations: ``int``
+        For how many iterations (steps) do you want to train your agent. NB these are not episode, these are steps.
+
+    save_path: ``str``
+        Where do you want to save your baseline.
+
+    load_path: ``str``
+        If you want to reload your baseline, specify the path where it is located. **NB** if a baseline is reloaded
+        some of the argument provided to this function will not be used.
+
+    net_arch:
+        The neural network architecture, used to create the neural network
+        of the PPO (see https://stable-baselines3.readthedocs.io/en/master/modules/ppo.html)
+
+    logs_dir: ``str``
+        Where to store the tensorboard generated logs during the training. ``None`` if you don't want to log them.
+
+    learning_rate: ``float``
+        The learning rate, see https://stable-baselines3.readthedocs.io/en/master/modules/ppo.html
+
+    save_every_xxx_steps: ``int``
+        If set (by default it's None) the stable baselines3 model will be saved
+        to the hard drive each `save_every_xxx_steps` steps performed in the
+        environment.
+
+    model_policy: 
+        Type of neural network model trained in stable baseline. By default
+        it's `MlpPolicy`
+
+    obs_attr_to_keep: list of string
+        Grid2op attribute to use to build the BoxObservationSpace. It is passed
+        as the "attr_to_keep" value of the
+        BoxObservation space (see
+        https://grid2op.readthedocs.io/en/latest/gym.html#grid2op.gym_compat.BoxGymObsSpace)
+        
+    obs_space_kwargs:
+        Extra kwargs to build the BoxGymObsSpace (**NOT** saved then NOT restored)
+
+    act_attr_to_keep: list of string
+        Grid2op attribute to use to build the BoxGymActSpace. It is passed
+        as the "attr_to_keep" value of the
+        BoxAction space (see
+        https://grid2op.readthedocs.io/en/latest/gym.html#grid2op.gym_compat.BoxGymActSpace)
+        
+    act_space_kwargs:
+        Extra kwargs to build the BoxGymActSpace (**NOT** saved then NOT restored)
+
+    verbose: ``bool``
+        If you want something to be printed on the terminal (a better logging strategy will be put at some point)
+
+    normalize_obs: ``bool``
+        Attempt to normalize the observation space (so that gym-based stuff will only
+        see numbers between 0 and 1)
+    
+    normalize_act: ``bool``
+        Attempt to normalize the action space (so that gym-based stuff will only
+        manipulate numbers between 0 and 1)
+    
+    gymenv_class: 
+        The class to use as a gym environment. By default `GymEnv` (from module grid2op.gym_compat)
+    
+    gymenv_kwargs: ``dict``
+        Extra key words arguments to build the gym environment., **NOT** saved / restored by this class
+        
+    policy_kwargs: ``dict``
+        extra parameters passed to the PPO "policy_kwargs" key word arguments
+        (defaults to ``None``)
+    
+    kwargs:
+        extra parameters passed to the PPO from stable baselines 3
+
+    Returns
+    -------
+
+    baseline: 
+        The trained baseline as a stable baselines PPO element.
+
+
+    .. _Example-ppo_stable_baseline:
+
+    Examples
+    ---------
+
+    Here is an example on how to train a ppo_stablebaseline .
+
+    First define a python script, for example
+
+    .. code-block:: python
+
+        import re
+        import grid2op
+        from grid2op.Reward import LinesCapacityReward  # or any other rewards
+        from grid2op.Chronics import MultifolderWithCache  # highly recommended
+        from lightsim2grid import LightSimBackend  # highly recommended for training !
+        from l2rpn_baselines.PPO_SB3 import train
+
+        env_name = "l2rpn_case14_sandbox"
+        env = grid2op.make(env_name,
+                           reward_class=LinesCapacityReward,
+                           backend=LightSimBackend(),
+                           chronics_class=MultifolderWithCache)
+
+        env.chronics_handler.real_data.set_filter(lambda x: re.match(".*00$", x) is not None)
+        env.chronics_handler.real_data.reset()
+        # see https://grid2op.readthedocs.io/en/latest/environment.html#optimize-the-data-pipeline
+        # for more information !
+
+        try:
+            trained_agent = train(
+                  env,
+                  iterations=10_000,  # any number of iterations you want
+                  logs_dir="./logs",  # where the tensorboard logs will be put
+                  save_path="./saved_model",  # where the NN weights will be saved
+                  name="test",  # name of the baseline
+                  net_arch=[100, 100, 100],  # architecture of the NN
+                  save_every_xxx_steps=2000,  # save the NN every 2k steps
+                  )
+        finally:
+            env.close()
+
+    """
+    
+    # keep only usable attributes (if default is used)
+    act_attr_to_keep = remove_non_usable_attr(env, act_attr_to_keep)
+    
+    # save the attributes kept
+    if save_path is not None:
+        my_path = os.path.join(save_path, name)
+        dict_to_save = {
+            "name": name,
+            "load_path": load_path,
+            "reward_class": str(type(env.get_reward_instance())),
+            "nomalize_obs": normalize_obs,
+            "normalize_act": normalize_act,
+            "gymenv_class": gymenv_class.__name__,
+            "gymenv_kwargs": gymenv_kwargs,
+            "n_available_chronics": len(env.chronics_handler.real_data.available_chronics()),
+            "iterations": iterations,     
+        }
+    save_used_attribute(save_path, name, obs_attr_to_keep, act_attr_to_keep)
+    
+
+    # define the gym environment from the grid2op env
+    env_gym = create_gymenv(env,
+               gymenv_class,
+               gymenv_kwargs,
+               obs_space_kwargs=obs_space_kwargs,
+               obs_attr_to_keep=obs_attr_to_keep,
+               act_space_kwargs=act_space_kwargs,
+               act_attr_to_keep=act_attr_to_keep,
+               normalize_act=normalize_act,
+               normalize_obs=normalize_obs,
+             )
+
+
+    if normalize_act:
+        if save_path is not None:
+            with open(os.path.join(my_path, ".normalize_act"), encoding="utf-8", 
+                      mode="w") as f:
+                f.write("I have encoded the action space !\n DO NOT MODIFY !")
+
+    if normalize_obs:
+        if save_path is not None:
+            with open(os.path.join(my_path, ".normalize_obs"), encoding="utf-8", 
+                      mode="w") as f:
+                f.write("I have encoded the observation space !\n DO NOT MODIFY !")
+    
+    # define the policy
+    if load_path is None:
+        if policy_kwargs is None:
+            policy_kwargs = {}
+        if net_arch is not None:
+            policy_kwargs["net_arch"] = net_arch
+        if logs_dir is not None:
+            if not os.path.exists(logs_dir):
+                os.mkdir(logs_dir)
+            this_logs_dir = os.path.join(logs_dir, name)
+        else:
+            this_logs_dir = None
+                
+        nn_kwargs = {
+            "policy": model_policy,
+            "env": env_gym,
+            "verbose": verbose,
+            "learning_rate": learning_rate,
+            "tensorboard_log": this_logs_dir,
+            "policy_kwargs": policy_kwargs,
+            **kwargs
+        }
+        
+        agent = SB3Agent(env.action_space,
+                         env_gym.action_space,
+                         env_gym.observation_space,
+                         nn_kwargs=nn_kwargs,
+        )
+        
+    else:        
+        agent = SB3Agent(env.action_space,
+                         env_gym.action_space,
+                         env_gym.observation_space,
+                         nn_path=os.path.join(load_path, name)
+        )
+
+
+    # Save a checkpoint every "save_every_xxx_steps" steps
+    if checkpoint_callback is None:
+        if save_every_xxx_steps is not None:
+            if save_path is None:
+                warnings.warn("save_every_xxx_steps is set, but no path are "
+                            "set to save the model (save_path is None). No model "
+                            "will be saved.")
+            else:
+                checkpoint_callback = CheckpointCallback(save_freq=save_every_xxx_steps,
+                                                        save_path=my_path,
+                                                        name_prefix=name)
+    # save hyperparameters
+    if save_path is not None:
+        dict_to_save.update({
+            "obs_attr_to_keep": env_gym._observation_space._attr_to_keep,
+            "act_attr_to_keep": env_gym.action_space._attr_to_keep,
+            "net_arch": agent.nn_model.policy.net_arch,
+            "activation_fn": str(agent.nn_model.policy.activation_fn),
+            "learning_rate": agent.nn_model.learning_rate,
+            "batch_size": agent.nn_model.batch_size,
+            "n_steps": agent.nn_model.n_steps,
+            **kwargs
+    })
+        with open(os.path.join(my_path, 'dict_hyperparameters.json'), 'x') as fp:
+            json.dump(dict_to_save, fp, indent=4)
+                
+    # train it
+    agent.nn_model.learn(total_timesteps=iterations,
+                        callback=checkpoint_callback,
+                        # eval_env=eval_env  # TODO
+                        )
+    
+    # save it    
+    if save_path is not None:
+        agent.nn_model.save(os.path.join(my_path, name))
+
+    env_gym.close()
+    return agent

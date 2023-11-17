@@ -17,7 +17,7 @@ env_name = "l2rpn_idf_2023"
 # average and standard deviation for each coordinate of the observation space.
 # The normalization coefficients are then saved in the file named preprocess_act.json.
 # If you want to recompute these coefficients, change this parameter to True.
-compute_normalization_coefficients = False
+recompute_normalization_coefficients = False
 
 deep_copy = is_windows  # force the deep copy on windows (due to permission issue in symlink in windows)
 
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     
     nm_val = env_name + "_val"
     
-    if compute_normalization_coefficients:
+    if recompute_normalization_coefficients:
         max_int = max_int = np.iinfo(dt_int).max
         env_val = grid2op.make(nm_val, backend=LightSimBackend())
         nb_scenario = len(env_val.chronics_handler.subpaths)
