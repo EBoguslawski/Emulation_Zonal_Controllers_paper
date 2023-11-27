@@ -1,0 +1,23 @@
+dash==2.7.0
+dash-bootstrap-components==1.2.1
+dash-core-components==2.0.0
+dash-html-components==2.0.0
+dash-table==5.0.0
+Grid2Op==1.9.3
+gym==0.21.0
+gymnasium==0.28.1
+l2rpn-baselines==0.8.0
+LightSim2Grid==0.7.0.post1
+numba==0.55.2
+numpy==1.22.4
+pandas==1.4.2
+scipy==1.10.0
+stable-baselines3==2.0.0
+StorageEnv @ git+https://github.com/EBoguslawski/storage_env.git@6f3a83173eb1bebae51c92e24d9c256abc78f77e
+tensorboard==2.8.0
+tensorflow==2.8.0
+torch==1.13.1
+torch-tb-profiler==0.4.1
+torchaudio==0.13.1
+torchinfo==1.7.2
+torchvision==0.14.1
