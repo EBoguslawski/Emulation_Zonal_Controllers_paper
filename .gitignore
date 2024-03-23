@@ -170,4 +170,5 @@ cython_debug/
 
 preprocess_act_old.json
 preprocess_obs_old.json
-1_following_the_plan_without_powergrid/B_study_res.ipynb
+*B_study_res.ipynb*
+*test_NoPlan_agent.ipynb*

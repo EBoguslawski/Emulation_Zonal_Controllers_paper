@@ -266,19 +266,10 @@ def evaluate_agent(agent_name,
     
 # agents_names = [f"agent_default_no_redisp_LinCapRew_sum_3x300_lr2_10M_{j}" for j in range(3)]
 # agents_names = ["agent_default_no_redisp_PenSetpointPosRew_sum_3x300_bis_lr2_10M_0"]
-agents_names = ["agent_default_no_redisp_LinCapRew_sum_3x300_lr2_10M_0"]
+# agents_names = ["agent_default_no_redisp_LinCapRew_sum_3x300_lr2_10M_0"]
 
-load_path = "/data/boguslawskieva_data/ppo_stable_baselines_idf_2023/saved_model_2023/"
+# load_path = "/data/boguslawskieva_data/ppo_stable_baselines_idf_2023/saved_model_2023/"
 
-for agent_name in agents_names:
-    evaluate_agent(agent_name, 
-                CustomGymEnv, 
-                GymEnvWithSetPointRecoDN, 
-                # GymEnvWithSetPointRemoveCurtail,
-                load_path=load_path,
-                nb_scenario=nb_scenario,
-                show_tqdm=True,
-                )
 
-print("END OF SCRIPT")
+# print("END OF SCRIPT")
 

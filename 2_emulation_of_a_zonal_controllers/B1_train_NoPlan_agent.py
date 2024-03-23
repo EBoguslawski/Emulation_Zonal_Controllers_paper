@@ -15,8 +15,13 @@ gymenv_class = CustomGymEnv
 safe_max_rho = 0.9  # the grid is said "safe" if the rho is lower than this value, it is a really important parameter to tune !
 curtail_margin = 30  # it is a really important parameter to tune !
 
+####### /!\
+# We set nb_iter = 4096 to check our code quickly, but to obtain a good agent you need 
+# to set nb_iter = 10_000_000 and. The training will last several hours.
+#######
+
 nb_iter = 4096
-# nb_iter = 10_000_000 # the NoPlan agent, LightCurtailment agent and Final agent were trained with 10 000 000 iterations
+# nb_iter = 10_000_000 # the NoPlan agent, LightCurtailment agent and WithPlan agent were trained with 10 000 000 iterations
 
 reward_class = LinesCapacityReward
     
@@ -74,7 +79,7 @@ if __name__ == "__main__":
     
     print("environment loaded !")
     
-    for i in range(5):
+    for i in range(1):
         trained_agent = train(
                 env,
                 iterations=nb_iter,
