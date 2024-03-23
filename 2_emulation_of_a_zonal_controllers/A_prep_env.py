@@ -12,6 +12,11 @@ is_windows = sys.platform.startswith("win32")
 
 env_name = "l2rpn_idf_2023"
 
+# In our experiments we trained 6 agents for each NoPlan / LightCurtailment / WithPlan.
+# It results in 6 x 3 = 18 trainings. You have to set NB_TRAINING = 6 here for this.
+# We set it to 1 to limit the number of trainings at the first execution of the code.
+NB_TRAINING = 1
+
 # We need coefficients to normalize our observations. 
 # To get them, we lauch the Recopowerline agent on the validation set and compute 
 # average and standard deviation for each coordinate of the observation space.
@@ -20,11 +25,6 @@ env_name = "l2rpn_idf_2023"
 recompute_normalization_coefficients = False
 
 deep_copy = is_windows  # force the deep copy on windows (due to permission issue in symlink in windows)
-
-# In our experiments we trained 6 agents for each NoPlan / LightCurtailment / WithPlan.
-# It results in 6 x 3 = 18 trainings. You have to set NB_TRAINING = 6 here for this.
-# We set it to 1 to limit the number of trainings at the first execution of the code.
-NB_TRAINING = 1
 
 
 if __name__ == "__main__":

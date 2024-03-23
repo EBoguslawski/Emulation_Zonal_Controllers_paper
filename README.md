@@ -2,7 +2,7 @@
 This repository aims to reproduce the results presented in the "Emulation of Zonal Controllers for the Power System Transport Problem" paper.
 
 # Python libraries
-We recommend using a dedicated Python virtual environment. You can install the needed libraries with the command :
+We recommend using a dedicated Python virtual environment. You can install the needed libraries with the command:
 
 `pip install -r requirements.txt`
 
