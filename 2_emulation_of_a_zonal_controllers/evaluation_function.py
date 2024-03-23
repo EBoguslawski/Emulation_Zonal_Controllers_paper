@@ -83,6 +83,7 @@ def evaluate_agent(agent_name,
             gymenv_class_training,
             gymenv_class_evaluation,
             my_agent=None,
+            DoNothing_agent=False,
             load_path = "./saved_models/",
             env_name = "l2rpn_idf_2023_val",
             nb_scenario = 2,
@@ -154,21 +155,21 @@ def evaluate_agent(agent_name,
             curtailment_mw_tot = info["rewards"]["curtailment_mw"]
             curtailment_limit_tot = info["rewards"]["curtailment_limit"]
             one_reward_tot = info["rewards"]["timesteps"]
-            print(i, gym_env.init_env.nb_time_step, reward_tot / gym_env.init_env.nb_time_step, 
-                curtailment_mw_tot/ (gym_env.init_env.nb_time_step * gym_env.init_env.gen_renewable.sum()), 
-                curtailment_limit_tot / (gym_env.init_env.nb_time_step * gym_env.init_env.gen_renewable.sum()), 
-                info["rewards"])
+            # print(i, gym_env.init_env.nb_time_step, reward_tot / gym_env.init_env.nb_time_step, 
+                # curtailment_mw_tot/ (gym_env.init_env.nb_time_step * gym_env.init_env.gen_renewable.sum()), 
+                # curtailment_limit_tot / (gym_env.init_env.nb_time_step * gym_env.init_env.gen_renewable.sum()), 
+                # info["rewards"])
         else: # happends when no heuristics has been apply in reset
             curtailment_mw_tot = 0
             curtailment_limit_tot = gym_env.init_env.get_obs().curtailment_limit[gym_env.init_env.gen_renewable].sum()
             one_reward_tot = 1
-            print(i, gym_env.init_env.nb_time_step, reward_tot, curtailment_mw_tot, curtailment_limit_tot)
+            # print(i, gym_env.init_env.nb_time_step, reward_tot, curtailment_mw_tot, curtailment_limit_tot)
             
         
         
-        # idx_begin, idx_end = gym_env.action_space.get_indexes("curtail")
-        # dn_act = np.zeros(gym_env.action_space.shape[0])
-        # dn_act[idx_begin:idx_end] = -1.
+        idx_begin, idx_end = gym_env.action_space.get_indexes("curtail")
+        dn_act = np.zeros(gym_env.action_space.shape[0])
+        dn_act[idx_begin:idx_end] = -1.
         if show_tqdm:
             pbar = tqdm(total=gym_env.init_env.max_episode_duration())
             pbar.update(gym_env.init_env.nb_time_step)
@@ -178,7 +179,8 @@ def evaluate_agent(agent_name,
             if not issubclass(gymenv_class_training, GymEnvWithSetPoint):
                 gym_obs_for_agent = get_obs_without_setpoint(gym_obs_for_agent, gym_env)
             gym_act = my_agent.get_act(gym_obs_for_agent, reward, done)
-            # gym_act = dn_act
+            if DoNothing_agent:
+                gym_act = dn_act
             # print(gym_env.init_env.nb_time_step, "gym_obs:", gym_obs)
             # print(gym_env.init_env.nb_time_step, "gym_act:", gym_act)
             
@@ -211,11 +213,11 @@ def evaluate_agent(agent_name,
         storage_diff_smr_array[i] = storage_diff_smr
         above_smr_array[i] = above_smr
         curtailment_limit_smr_array[i] = curtailment_limit_smr
-        print(i, gym_env.init_env.nb_time_step, 
-            reward_tot / one_reward_tot, 
-            curtailment_mw_tot / (one_reward_tot * gym_env.init_env.gen_renewable.sum()), 
-            curtailment_limit_tot / (one_reward_tot * gym_env.init_env.gen_renewable.sum()), 
-            info["rewards"])
+        # print(i, gym_env.init_env.nb_time_step, 
+        #     reward_tot / one_reward_tot, 
+        #     curtailment_mw_tot / (one_reward_tot * gym_env.init_env.gen_renewable.sum()), 
+        #     curtailment_limit_tot / (one_reward_tot * gym_env.init_env.gen_renewable.sum()), 
+        #     info["rewards"])
         
     print("Average timesteps survived:", np.mean(ts_survived_array))
     print("Median of timesteps survived", np.median(ts_survived_array))

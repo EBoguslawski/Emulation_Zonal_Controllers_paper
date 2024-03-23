@@ -6,6 +6,8 @@ import copy
 from grid2op.Action import PlayableAction
 from utils import *
 
+from A_prep_env import NB_TRAINING
+
 
 env_name = "l2rpn_idf_2023_train"
 save_path = "./saved_models" 
@@ -91,7 +93,7 @@ if __name__ == "__main__":
     
     print("environment loaded !")
     
-    for i in range(1):
+    for i in range(NB_TRAINING):
             trained_agent = train(
                     env,
                     iterations=nb_iter,

@@ -5,6 +5,8 @@ from grid2op.Action import PlayableAction
 from grid2op.Reward import LinesCapacityReward
 from utils import *
 
+from A_prep_env import NB_TRAINING
+
 env_name = "l2rpn_idf_2023_train"
 save_path = "./saved_models"
 max_iter = 7 * 24 * 12  # This parameter is set so that each scenario lasts a week  
@@ -79,7 +81,7 @@ if __name__ == "__main__":
     
     print("environment loaded !")
     
-    for i in range(1):
+    for i in range(NB_TRAINING):
         trained_agent = train(
                 env,
                 iterations=nb_iter,
