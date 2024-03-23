@@ -277,7 +277,7 @@ for agent_name in agents_names:
                 # GymEnvWithSetPointRemoveCurtail,
                 load_path=load_path,
                 nb_scenario=nb_scenario,
-                show_tqdm=False,
+                show_tqdm=True,
                 )
 
 print("END OF SCRIPT")

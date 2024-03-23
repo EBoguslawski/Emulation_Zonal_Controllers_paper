@@ -161,7 +161,13 @@ cython_debug/
 
 # Output
 *.out
+*.png
 */logs/
 */saved_models/
+*/saved_experiments/
 */final_results/
+*masked_env*
 
+preprocess_act_old.json
+preprocess_obs_old.json
+1_following_the_plan_without_powergrid/B_study_res.ipynb

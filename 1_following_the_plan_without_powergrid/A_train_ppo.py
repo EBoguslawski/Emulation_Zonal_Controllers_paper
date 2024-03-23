@@ -7,7 +7,12 @@
 # This file is part of storage_env, storage_env a over simplified gym environment to test control storage units
 
 
-from storage_env import StorageEnv
+####### /!\
+# We set total_timesteps = 4096 to check our code quickly, but to obtain a good agent you need 
+# to set total_timesteps = 20_000_000 and. The training will last several hours.
+#######
+
+from StorageEnv import StorageEnv
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 import grid2op
@@ -17,23 +22,10 @@ import os
 import warnings
 import copy
 import json
+import datetime
 import pdb
 
 MAIN_FOLDER = "./saved_experiments/"
-
-def check_cuda(use_cuda, cuda_device):
-    """
-    Check if cuda is available and send a warning if necessary.
-    """
-    if use_cuda:
-        assert torch.cuda.is_available(), "cuda is not available on your machine with pytorch"
-        torch.cuda.set_device(int(cuda_device))
-    else:
-        warnings.warn("You won't use cuda")
-        if int(cuda_device) != 0:
-            warnings.warn("You specified to use a cuda_device (\"cuda_device = XXX\") yet you tell the program not to use cuda (\"use_cuda = False\"). "
-                          "This program will ignore the \"cuda_device = XXX\" directive.")
-    return use_cuda
 
 def build_dict_to_save(expe_name, name, g2op_env_name, n_storage, env_kwargs, PPO_kwargs, total_timesteps):
     """
@@ -41,10 +33,12 @@ def build_dict_to_save(expe_name, name, g2op_env_name, n_storage, env_kwargs, PP
     This disctionary will then be saved in a json file.
     """
     dict_to_save = {}
+    dict_to_save["date_time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     dict_to_save["expe_name"] = expe_name
     dict_to_save["name"] = name
     dict_to_save["n_storage"] = n_storage
     dict_to_save["g2op_env_name"] = g2op_env_name
+    dict_to_save["gym_env_name"] = str(type(StorageEnv))
     dict_to_save["total_timesteps"] = total_timesteps
     dict_to_save["env_kwargs"] = copy.deepcopy(env_kwargs)
     dict_to_save["PPO_kwargs"] = copy.deepcopy(PPO_kwargs)
@@ -54,39 +48,29 @@ def build_dict_to_save(expe_name, name, g2op_env_name, n_storage, env_kwargs, PP
     return dict_to_save
 
 def train_PPO(expe_name, name, env_kwargs, PPO_kwargs, 
-              g2op_env_name="educ_case14_storage", 
-              total_timesteps=5_000_000, 
-              use_cuda=True, 
-              cuda_device=0,
+              g2op_env_name="l2rpn_idf_2023", 
+              total_timesteps=4096, 
               save_every_xxx_steps = None
               ):
     """
     Train the model. Save the model, logs and used hyperparameters.
     """
-    use_cuda = check_cuda(use_cuda, cuda_device)
-    device = torch.device("cuda" if use_cuda else "cpu")
-
+    
     # We will save the model here
     path_expe = os.path.join(MAIN_FOLDER, expe_name, name)
     
     # Define the training environment
-    g2op_env = grid2op.make(g2op_env_name, test=True) # l2rpn_wcci_2022
-    env = StorageEnv(g2op_env.max_episode_duration(),
+    g2op_env = grid2op.make(g2op_env_name, test=True)
+    env = StorageEnv(12 * 24, # Number of time steps per scenario : it lasts a day
                      g2op_env.n_storage,
                      g2op_env.storage_Emin,
                      g2op_env.storage_Emax,
                      g2op_env.storage_max_p_prod,
                      **env_kwargs)
-    # env = StorageEnv(g2op_env.max_episode_duration(),
-    #                  g2op_env.n_storage * 3,
-    #                  np.tile(g2op_env.storage_Emin, 3),
-    #                  np.tile(g2op_env.storage_Emax, 3),
-    #                  np.tile(g2op_env.storage_max_p_prod, 3),
-    #                  **env_kwargs)
     env.reset()
     
     # Initialize the model
-    model = PPO("MlpPolicy", env, verbose=1, tensorboard_log=path_expe, gamma=0.999,
+    model = PPO("MlpPolicy", env, verbose=1, tensorboard_log=path_expe,
                 **PPO_kwargs
                 )
     
@@ -111,38 +95,37 @@ def train_PPO(expe_name, name, env_kwargs, PPO_kwargs,
 
     
 if __name__ == "__main__":
-    # Choose to use or not cuda
-    use_cuda = True
-    device = torch.device("cuda" if use_cuda else "cpu")
     
-    # Initialize some default hyperparameters for the training environment and the training
+    #### Initialize some default hyperparameters for the training environment and the training
+    
     # total_timesteps = 20_000_000
     total_timesteps = 4096
-    save_every_xxx_steps = min(total_timesteps // 10, 5000000)
+    save_every_xxx_steps = min(total_timesteps // 10, 5_000_000)
+    # Hyperparameters that determines the shape and smoothness of the target setpoint
     env_kwargs_default = dict(init_storage_capa_ratio=(0.1, 0.9),
                      ratio_setpoint=(0.2, 3),
                      smooth=12,
                      reward_shape="abs")
     PPO_kwargs_default = dict(learning_rate = 3e-6,
+                gamma=0.999,
                 policy_kwargs={"activation_fn": torch.nn.ReLU, 
                                "net_arch": {'pi': [300, 300, 300], 'vf': [300, 300, 300]}
                                },
                 n_steps=32,
                 )
     
-    #### Experiment
+    #### Lauch experiment
     
-    for i in range(2):
-        expe_name = "case_118_final_agent_instances"
-        name = f"rew_abs_lr_1e-6_n_steps_32_{i}"
-        path_expe = os.path.join(expe_name, name)
-        env_kwargs = copy.deepcopy(env_kwargs_default)
-        PPO_kwargs = copy.deepcopy(PPO_kwargs_default)
-        PPO_kwargs["n_steps"] = 32
-        PPO_kwargs["learning_rate"] = 3e-6
-        train_PPO(expe_name, name, env_kwargs, PPO_kwargs, 
-                  g2op_env_name="l2rpn_idf_2023", # "l2rpn_wcci_2022"
-                  total_timesteps=total_timesteps, 
-                  use_cuda=True, cuda_device=i, 
-                  save_every_xxx_steps=save_every_xxx_steps)
+    expe_name = "expe_118_substations_power_grid"
+    name = "without_power_grid_agent"
+    path_expe = os.path.join(expe_name, name)
+    env_kwargs = copy.deepcopy(env_kwargs_default) 
+    PPO_kwargs = copy.deepcopy(PPO_kwargs_default)
+    ###### You can change some hyperparameters here if you want
+    # PPO_kwargs["n_steps"] = 64
+    ######
+    train_PPO(expe_name, name, env_kwargs, PPO_kwargs, 
+                g2op_env_name="l2rpn_idf_2023",
+                total_timesteps=total_timesteps, 
+                save_every_xxx_steps=save_every_xxx_steps)
 

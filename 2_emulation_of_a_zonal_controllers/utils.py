@@ -34,9 +34,9 @@ obs_attr_to_keep_default = ["month", "day_of_week", "hour_of_day", "minute_of_ho
 # attributes of the possible actions by default
 act_attr_to_keep_default = ["curtail", "set_storage"]
 
-with open("preprocess_obs.json", "r", encoding="utf-8") as f:
+with open("preprocess_obs_old.json", "r", encoding="utf-8") as f:
     obs_space_kwargs_default = json.load(f)
-with open("preprocess_act.json", "r", encoding="utf-8") as f:
+with open("preprocess_act_old.json", "r", encoding="utf-8") as f:
     act_space_kwargs_default = json.load(f) 
 
 class CustomGymEnv(GymEnvWithRecoWithDN):
@@ -147,7 +147,7 @@ class GymEnvWithSetPoint(GymEnvWithHeuristics):
         grid2op_action.limit_curtail_storage(g2op_obs, margin=self._curtail_margin)
         return grid2op_action
 
-    def reset(self, seed=None, return_info=True, options=None, return_all=False):
+    def reset(self, seed=None, return_info=True, options=None, return_all=False, reset_until_not_done=True):
         # gym_obs, reward, done, info = super().reset(seed=seed, options=options, return_all=True)
         
         if hasattr(type(self), "_gymnasium") and type(self)._gymnasium:
@@ -165,7 +165,7 @@ class GymEnvWithSetPoint(GymEnvWithHeuristics):
             g2op_obs, reward, done, info = self.apply_heuristics_actions(g2op_obs, reward, False, info)
             
             # convert back the observation to gym
-            if not done:
+            if not done or not reset_until_not_done:
                 self._previous_obs = g2op_obs
                 gym_obs = self.observation_space.to_gym(g2op_obs)
                 break
@@ -493,7 +493,6 @@ class GymEnvWithSetPointRecoDN(GymEnvWithSetPoint):
         elif g2op_obs.rho.max() <= self._safe_max_rho:
             # play do nothing if there is "no problem" according to the "rule of thumb"
             res = [self.init_env.action_space()]
-            
         return res
     
     
@@ -514,7 +513,10 @@ def create_gymenv(env,
     if act_attr_to_keep is None: act_attr_to_keep = act_attr_to_keep_default.copy()
     
     if issubclass(gymenv_class, GymEnvWithSetPoint):
-        obs_space_kwargs["functs"] ={"storage_setpoint": (lambda grid2opobs: np.zeros(env.n_storage), 0., 1.0, None, None)}
+        if "functs" not in obs_space_kwargs.keys():
+            obs_space_kwargs["functs"] = {}
+        if "storage_setpoint" not in obs_space_kwargs["functs"]:
+            obs_space_kwargs["functs"].update({"storage_setpoint": (lambda grid2opobs: np.zeros(env.n_storage), 0., 1.0, None, None)})
         if obs_attr_to_keep[-1] != "storage_setpoint":
             obs_attr_to_keep.append("storage_setpoint")
 
@@ -588,7 +590,16 @@ def load_agent(env, load_path, name,
                gymenv_kwargs={},
                iter_num=None,
                return_gymenv=False,
+               obs_space_kwargs = None,
+               act_space_kwargs = None,
+               obs_attr_to_keep = None,
+               act_attr_to_keep = None,
              ):      
+    
+    if obs_space_kwargs is None: obs_space_kwargs = copy.deepcopy(obs_space_kwargs_default)
+    if act_space_kwargs is None: act_space_kwargs = copy.deepcopy(act_space_kwargs_default)
+    if obs_attr_to_keep is None: obs_attr_to_keep = obs_attr_to_keep_default.copy()
+    if act_attr_to_keep is None: act_attr_to_keep = act_attr_to_keep_default.copy()
     
     full_path = os.path.join(load_path, name) 
     # whether or not observations and actions are normalized
@@ -601,6 +612,10 @@ def load_agent(env, load_path, name,
                gymenv_kwargs=gymenv_kwargs,
                normalize_obs=normalize_obs,
                normalize_act=normalize_act,
+               obs_space_kwargs=obs_space_kwargs,
+               act_space_kwargs=act_space_kwargs,
+               obs_attr_to_keep=obs_attr_to_keep,
+               act_attr_to_keep=act_attr_to_keep,
                )
     
     # create a grid2gop agent based on that (this will reload the save weights) 
@@ -906,3 +921,103 @@ def train(env,
 
     env_gym.close()
     return agent
+
+
+
+
+class CustomGymEnvZone1(GymEnvWithHeuristics):
+    """This environment is slightly more complex that the other one.
+    
+    It consists in 2 things:
+    
+    #. reconnecting the powerlines if possible
+    #. doing nothing is the state of the grid is "safe" (for this class, the notion of "safety" is pretty simple: if all
+       flows are bellow 90% (by default) of the thermal limit, then it is safe)
+    
+    If for a given step, non of these things is applicable, the underlying trained agent is asked to perform an action
+    
+    .. warning::
+        When using this environment, we highly recommend to adapt the parameter `safe_max_rho` to suit your need.
+        
+        Sometimes, 90% of the thermal limit is too high, sometimes it is too low.
+        
+    """
+    def __init__(self, env_init, *args, reward_cumul="init", safe_max_rho=0.9, curtail_margin=30, **kwargs):
+        super().__init__(env_init, reward_cumul=reward_cumul, *args, **kwargs)
+        self._safe_max_rho = safe_max_rho
+        self._curtail_margin = curtail_margin
+        self.lines_I_care_about = [135, 136, 137, 138, 139, 141, 142, 143, 144, 146, 147, 148, 149,
+            150, 152, 153, 154, 155, 156, 157, 158, 159, 160, 163, 164, 165,
+            166, 167, 168, 180, 181, 182]
+        
+    def heuristic_actions(self, g2op_obs, reward, done, info) -> List[BaseAction]:
+        """To match the description of the environment, this heuristic will:
+        
+        - return the list of all the powerlines that can be reconnected if any
+        - return the list "[do nothing]" is the grid is safe
+        - return the empty list (signaling the agent should take control over the heuristics) otherwise
+
+        Parameters
+        ----------
+        See parameters of :func:`GymEnvWithHeuristics.heuristic_actions`
+
+        Returns
+        -------
+        See return values of :func:`GymEnvWithHeuristics.heuristic_actions`
+        """
+        
+        to_reco = (g2op_obs.time_before_cooldown_line == 0) & (~g2op_obs.line_status)
+        res = []
+        if np.any(to_reco):
+            # reconnect something if it can be
+            reco_id = np.where(to_reco)[0]
+            for line_id in reco_id:
+                g2op_act = self.init_env.action_space({"set_line_status": [(line_id, +1)]})
+                res.append(g2op_act)
+        elif g2op_obs.rho[self.lines_I_care_about].max() <= self._safe_max_rho:
+            # play do nothing if there is "no problem" according to the "rule of thumb"
+            res = [self.init_env.action_space()]
+        return res
+    
+    def fix_action(self, grid2op_action, g2op_obs):
+        # We try to limit to end up with a "game over" because actions on curtailment or storage units.
+        # this is "required" because we use curtailment and action on storage units
+        # but the main goal is to 
+        grid2op_action.limit_curtail_storage(g2op_obs, margin=self._curtail_margin)
+        return grid2op_action
+    
+    
+class GymEnvWithSetPointRecoDNZone1(GymEnvWithSetPoint): 
+    def __init__(self, env_init, *args, reward_cumul="sum", safe_max_rho=0.9, curtail_margin=30, weight_penalization_storage=0.25, ind=1, **kwargs):
+        super().__init__(env_init=env_init, *args, reward_cumul=reward_cumul, safe_max_rho=safe_max_rho, curtail_margin=curtail_margin, weight_penalization_storage=weight_penalization_storage, ind=ind,**kwargs)
+        self.lines_I_care_about = [135, 136, 137, 138, 139, 141, 142, 143, 144, 146, 147, 148, 149,
+            150, 152, 153, 154, 155, 156, 157, 158, 159, 160, 163, 164, 165,
+            166, 167, 168, 180, 181, 182]
+        
+    def heuristic_actions(self, g2op_obs, reward, done, info) -> List[BaseAction]:
+        """To match the description of the environment, this heuristic will:
+        
+        - return the list of all the powerlines that can be reconnected if any
+        - return the list "[do nothing]" is the grid is safe
+        - return the empty list (signaling the agent should take control over the heuristics) otherwise
+
+        Parameters
+        ----------
+        See parameters of :func:`GymEnvWithHeuristics.heuristic_actions`
+
+        Returns
+        -------
+        See return values of :func:`GymEnvWithHeuristics.heuristic_actions`
+        """
+        to_reco = (g2op_obs.time_before_cooldown_line == 0) & (~g2op_obs.line_status)
+        res = []
+        if np.any(to_reco):
+            # reconnect something if it can be
+            reco_id = np.where(to_reco)[0]
+            for line_id in reco_id:
+                g2op_act = self.init_env.action_space({"set_line_status": [(line_id, +1)]})
+                res.append(g2op_act)
+        elif g2op_obs.rho[self.lines_I_care_about].max() <= self._safe_max_rho:
+            # play do nothing if there is "no problem" according to the "rule of thumb"
+            res = [self.init_env.action_space()]
+        return res

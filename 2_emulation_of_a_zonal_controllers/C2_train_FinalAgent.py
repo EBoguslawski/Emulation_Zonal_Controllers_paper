@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # attributes of the possible actions
     act_attr_to_keep = ["curtail", "set_storage"]
     
-    # parameters for the learning
+    # parameters for the training
     learning_rate = 3e-5
     net_arch = {'pi': [300, 300, 300], 'vf': [300, 300, 300]}
     
