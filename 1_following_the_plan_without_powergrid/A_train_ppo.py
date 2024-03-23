@@ -8,8 +8,8 @@
 
 
 ####### /!\
-# We set total_timesteps = 4096 to check our code quickly, but to obtain a good agent you need 
-# to set total_timesteps = 20_000_000 and. The training will last several hours.
+# We set nb_iter = 4096 to check our code quickly, but to obtain a good agent you need 
+# to set nb_iter = 20_000_000 and. The training will last several hours.
 #######
 
 from StorageEnv import StorageEnv
@@ -98,9 +98,9 @@ if __name__ == "__main__":
     
     #### Initialize some default hyperparameters for the training environment and the training
     
-    # total_timesteps = 20_000_000
-    total_timesteps = 4096
-    save_every_xxx_steps = min(total_timesteps // 10, 5_000_000)
+    # nb_iter = 20_000_000
+    nb_iter = 4096
+    save_every_xxx_steps = min(nb_iter // 10, 5_000_000)
     # Hyperparameters that determines the shape and smoothness of the target setpoint
     env_kwargs_default = dict(init_storage_capa_ratio=(0.1, 0.9),
                      ratio_setpoint=(0.2, 3),
@@ -126,6 +126,6 @@ if __name__ == "__main__":
     ######
     train_PPO(expe_name, name, env_kwargs, PPO_kwargs, 
                 g2op_env_name="l2rpn_idf_2023",
-                total_timesteps=total_timesteps, 
+                total_timesteps=nb_iter, 
                 save_every_xxx_steps=save_every_xxx_steps)
 
