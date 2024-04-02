@@ -35,8 +35,8 @@ agents_dict.keys()
 
 
 # %%
-agent = PPO.load("/home/boguslawskieva/storage_env_expe/saved_experiments/case_118_lr_n_steps_ratio_setpoint/rew_abs_lr_3e-06_n_steps_32/rew_abs_lr_3e-06_n_steps_32.zip")
-agents_dict.update({"best_agent":agent})
+# agent = PPO.load("/home/boguslawskieva/storage_env_expe/saved_experiments/case_118_lr_n_steps_ratio_setpoint/rew_abs_lr_3e-06_n_steps_32/rew_abs_lr_3e-06_n_steps_32.zip")
+# agents_dict.update({"best_agent":agent})
 seed_coef=2
 for seed, smooth, target_shape, title in zip(
     [1*seed_coef, 2*seed_coef, 3*seed_coef],
