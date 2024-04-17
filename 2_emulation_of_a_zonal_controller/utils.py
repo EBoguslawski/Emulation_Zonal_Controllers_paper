@@ -34,9 +34,9 @@ obs_attr_to_keep_default = ["month", "day_of_week", "hour_of_day", "minute_of_ho
 # attributes of the possible actions by default
 act_attr_to_keep_default = ["curtail", "set_storage"]
 
-with open("preprocess_obs_old.json", "r", encoding="utf-8") as f:
+with open("preprocess_obs.json", "r", encoding="utf-8") as f:
     obs_space_kwargs_default = json.load(f)
-with open("preprocess_act_old.json", "r", encoding="utf-8") as f:
+with open("preprocess_act.json", "r", encoding="utf-8") as f:
     act_space_kwargs_default = json.load(f) 
 
 class CustomGymEnv(GymEnvWithRecoWithDN):

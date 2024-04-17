@@ -34,7 +34,7 @@ if __name__ == "__main__":
     from grid2op.Chronics import MultifolderWithCache  # highly recommended for training
     import torch
     
-    torch.cuda.set_device(3)
+    # torch.cuda.set_device(3)
     
     # attributes taken into account in the observation
     obs_attr_to_keep = ["month", "day_of_week", "hour_of_day", "minute_of_hour",
