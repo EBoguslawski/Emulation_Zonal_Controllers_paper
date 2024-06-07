@@ -516,7 +516,8 @@ def create_gymenv(env,
         if "functs" not in obs_space_kwargs.keys():
             obs_space_kwargs["functs"] = {}
         if "storage_setpoint" not in obs_space_kwargs["functs"]:
-            obs_space_kwargs["functs"].update({"storage_setpoint": (lambda grid2opobs: np.zeros(env.n_storage), 0., 1.0, None, None)})
+            n_storage = env.n_storage # without this line, the PPO model is much heavier (600 Mo)
+            obs_space_kwargs["functs"].update({"storage_setpoint": (lambda grid2opobs: np.zeros(n_storage), 0., 1.0, None, None)})
         if obs_attr_to_keep[-1] != "storage_setpoint":
             obs_attr_to_keep.append("storage_setpoint")
 

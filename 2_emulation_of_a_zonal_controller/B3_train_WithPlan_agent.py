@@ -69,7 +69,8 @@ if __name__ == "__main__":
     with open("preprocess_obs.json", "r", encoding="utf-8") as f:
         obs_space_kwargs = json.load(f)
     # we need this line because "storage_setpoint" is not in the attributes by default
-    obs_space_kwargs["functs"] ={"storage_setpoint": (lambda grid2opobs: np.zeros(env.n_storage),
+    n_storage = env.n_storage # without this line, the PPO model is much heavier (600 Mo)
+    obs_space_kwargs["functs"] ={"storage_setpoint": (lambda grid2opobs: np.zeros(n_storage),
                                                             0., 1.0, None, None)}
     with open("preprocess_act.json", "r", encoding="utf-8") as f:
         act_space_kwargs = json.load(f)
